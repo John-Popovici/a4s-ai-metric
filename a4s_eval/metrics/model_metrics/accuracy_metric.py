@@ -1,6 +1,6 @@
 from datetime import datetime
-import numpy as np
-import pandas as pd
+# import numpy as np
+# import pandas as pd
 
 from a4s_eval.data_model.evaluation import DataShape, Dataset, Model
 from a4s_eval.data_model.measure import Measure
@@ -15,11 +15,10 @@ def accuracy(
     dataset: Dataset,
     functional_model: FunctionalModel,
 ) -> list[Measure]:
-    
     # Both x and y (the features and the target) are contained in dataset.data as a dataframe.
     # To identify the target (y), use the datashape.target object, which has a name property. Use this property to index the aforementioned dataframe.
     # To identify the features (x), use the datashape.features list of object. Similarly each object in this list has a name property to index the dataframe.
-    
+
     target_name = datashape.target.name
     feature_names = [f.name for f in datashape.features]
 
@@ -27,8 +26,10 @@ def accuracy(
     # print(feature_names)
 
     # Inspect FunctionalModel definition to identify the function to use to compute the model predictions.
-    x_df = dataset.data[feature_names] # <class 'pandas.core.frame.DataFrame'> (1000, 28)
-    y_df = dataset.data[target_name] # <class 'pandas.core.frame.DataFrame'> (1000,)
+    x_df = dataset.data[
+        feature_names
+    ]  # <class 'pandas.core.frame.DataFrame'> (1000, 28)
+    y_df = dataset.data[target_name]  # <class 'pandas.core.frame.DataFrame'> (1000,)
 
     # print(type(x_df))
     # print(x_df.shape)
@@ -39,23 +40,23 @@ def accuracy(
         x = x_df.iloc[:10_000]
         y = y_df.iloc[:10_000]
 
-    x = x_df.values # <class 'numpy.ndarray'> (1000, 28)
-    y = y_df.values # <class 'numpy.ndarray'> (1000,)
-    
+    x = x_df.values  # <class 'numpy.ndarray'> (1000, 28)
+    y = y_df.values  # <class 'numpy.ndarray'> (1000,)
+
     # print(type(x))
     # print(x.shape)
     # print(y.shape)
 
     # Use the y (from the dataset.data) and the prediction to cumpute the accuracy.
-    y_pred = functional_model.predict(x) # <class 'numpy.ndarray'> (1000,)
+    y_pred = functional_model.predict(x)  # <class 'numpy.ndarray'> (1000,)
 
-    # print(type(y_pred)) 
+    # print(type(y_pred))
     # print(y_pred.shape)
     # print(y[:10])
     # print(y[:10])
     # print(y_pred[:10])
 
-    accuracy = (y_pred == y) # <class 'numpy.ndarray'> (1000,)
+    accuracy = y_pred == y  # <class 'numpy.ndarray'> (1000,)
     accuracy_value = accuracy.mean()
 
     # print(accuracy.shape)
@@ -63,6 +64,6 @@ def accuracy(
 
     # Below is a placeholder that allows pytest to pass.
     # accuracy_value = 0.99
-    
+
     current_time = datetime.now()
     return [Measure(name="accuracy", score=accuracy_value, time=current_time)]
