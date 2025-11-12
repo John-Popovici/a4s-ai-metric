@@ -48,7 +48,7 @@ def accuracy(
     # print(y.shape)
 
     # Use the y (from the dataset.data) and the prediction to cumpute the accuracy.
-    y_pred = functional_model.predict(x)  # <class 'numpy.ndarray'> (1000,)
+    y_pred = functional_model.predict_class(x)  # <class 'numpy.ndarray'> (1000,)
 
     # print(type(y_pred))
     # print(y_pred.shape)
