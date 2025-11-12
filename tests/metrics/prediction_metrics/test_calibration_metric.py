@@ -1,0 +1,235 @@
+import datetime
+import uuid
+
+import numpy as np
+import onnxruntime as ort
+import pandas as pd
+import pytest
+
+from a4s_eval.data_model.evaluation import Dataset, DataShape, Model
+from a4s_eval.data_model.measure import Measure
+from a4s_eval.metrics.prediction_metrics.calibration_metric import (
+    classification_calibration_score_metric,
+)
+
+
+@pytest.fixture
+def data_shape() -> DataShape:
+    metadata = pd.read_csv("tests/data/lcld_v2_metadata_api.csv").to_dict(
+        orient="records"
+    )
+
+    for record in metadata:
+        record["pid"] = uuid.uuid4()
+
+    data_shape = {
+        "features": [
+            item
+            for item in metadata
+            if item.get("name") not in ["charged_off", "issue_d"]
+        ],
+        "target": next(rec for rec in metadata if rec.get("name") == "charged_off"),
+        "date": next(rec for rec in metadata if rec.get("name") == "issue_d"),
+    }
+
+    return DataShape.model_validate(data_shape)
+
+
+@pytest.fixture
+def test_dataset(tab_class_test_data: pd.DataFrame, data_shape: DataShape) -> Dataset:
+    data = tab_class_test_data
+    data["issue_d"] = pd.to_datetime(data["issue_d"])
+    return Dataset(pid=uuid.uuid4(), shape=data_shape, data=data)
+
+
+@pytest.fixture
+def ref_dataset(tab_class_train_data: pd.DataFrame, data_shape: DataShape) -> Dataset:
+    data = tab_class_train_data
+    data["issue_d"] = pd.to_datetime(data["issue_d"])
+    return Dataset(
+        pid=uuid.uuid4(),
+        shape=data_shape,
+        data=data,
+    )
+
+
+@pytest.fixture
+def ref_model(ref_dataset: Dataset) -> Model:
+    return Model(
+        pid=uuid.uuid4(),
+        model=None,
+        dataset=ref_dataset,
+    )
+
+
+@pytest.fixture
+def y_pred_proba(ref_model: Model, test_dataset: Dataset) -> np.ndarray:
+    session = ort.InferenceSession("./tests/data/lcld_v2_random_forest.onnx")
+    df = test_dataset.data[[f.name for f in test_dataset.shape.features]]
+    x_test = df.astype(np.double).to_numpy()
+
+    input_name = session.get_inputs()[0].name
+    label_name = session.get_outputs()[1].name
+    pred_onx = session.run([label_name], {input_name: x_test})[0]
+    y_pred_proba = np.array([list(d.values()) for d in pred_onx])
+
+    return y_pred_proba
+
+
+def test_model_calibration_evaluation(
+    data_shape: DataShape,
+    ref_model: Model,
+    test_dataset: Dataset,
+    y_pred_proba: np.ndarray,
+):
+    metrics = classification_calibration_score_metric(
+        data_shape, ref_model, test_dataset, y_pred_proba
+    )
+    assert len(metrics) == 2
+    ECE_metric: Measure = metrics[0]
+    MCE_metric: Measure = metrics[1]
+
+    assert ECE_metric.name == "ECE"
+    assert MCE_metric.name == "MCE"
+
+    for metric in [ECE_metric, MCE_metric]:
+        assert isinstance(metric.score, float)
+        assert 0 <= metric.score <= 1
+        assert isinstance(metric.time, datetime.datetime)
+
+
+def generate_expected_formats(y_true: np.array) -> (DataShape, Dataset):
+    def dummy_feature(name, ftype):
+        return {
+            "pid": uuid.uuid4(),
+            "name": name,
+            "feature_type": ftype,
+            "min_value": 0.0,
+            "max_value": 1.0,
+        }
+
+    dummy_data_shape = DataShape.model_validate(
+        {
+            "features": [],
+            "target": dummy_feature("target", "float"),
+            "date": dummy_feature("date", "date"),
+        }
+    )
+
+    dates = pd.date_range("2025-01-01", periods=len(y_true), freq="D")
+    df = pd.DataFrame(
+        {
+            dummy_data_shape.target.name: y_true,
+            dummy_data_shape.date.name: dates,
+        }
+    )
+
+    dummy_dataset = Dataset(
+        pid=uuid.uuid4(),
+        shape=dummy_data_shape,
+        data=df,
+    )
+
+    dummy_model = Model(
+        pid=uuid.uuid4(),
+        model=None,
+        dataset=dummy_dataset,
+    )
+
+    return dummy_data_shape, dummy_dataset, dummy_model
+
+
+def test_model_calibration_value_evaluation_1():
+    # Hardcoded test data
+    # Source from towardsdatascience.com
+    y_pred_proba = np.array(
+        [
+            [0.78, 0.22],
+            [0.36, 0.64],
+            [0.08, 0.92],
+            [0.58, 0.42],
+            [0.49, 0.51],
+            [0.85, 0.15],
+            [0.30, 0.70],
+            [0.63, 0.37],
+            [0.17, 0.83],
+        ]
+    )
+
+    y_true = np.array([0, 1, 0, 0, 0, 0, 1, 1, 1])
+    expected_ece = 0.10444
+    expected_mce = 0.20000
+    n_bins = 5
+
+    # Generate expected formats
+    dummy_data_shape, dummy_dataset, dummy_model = generate_expected_formats(y_true)
+
+    # Run metrics
+    metrics = classification_calibration_score_metric(
+        dummy_data_shape, dummy_model, dummy_dataset, y_pred_proba, n_bins
+    )
+
+    # Run assertions
+    assert len(metrics) == 2
+    ECE_metric: Measure = metrics[0]
+    MCE_metric: Measure = metrics[1]
+
+    assert ECE_metric.name == "ECE"
+    assert MCE_metric.name == "MCE"
+
+    for metric in [ECE_metric, MCE_metric]:
+        assert isinstance(metric.score, float)
+        assert 0 <= metric.score <= 1
+        assert isinstance(metric.time, datetime.datetime)
+
+    assert abs(ECE_metric.score - expected_ece) < 0.00001
+    assert abs(MCE_metric.score - expected_mce) < 0.00001
+
+
+def test_model_calibration_value_evaluation_2():
+    # Hardcoded test data
+    # Source from towardsdatascience.com
+    y_pred_proba = np.array(
+        [
+            [0.25, 0.2, 0.22, 0.18, 0.15],
+            [0.16, 0.06, 0.5, 0.07, 0.21],
+            [0.06, 0.03, 0.8, 0.07, 0.04],
+            [0.02, 0.03, 0.01, 0.04, 0.9],
+            [0.4, 0.15, 0.16, 0.14, 0.15],
+            [0.15, 0.28, 0.18, 0.17, 0.22],
+            [0.07, 0.8, 0.03, 0.06, 0.04],
+            [0.1, 0.05, 0.03, 0.75, 0.07],
+            [0.25, 0.22, 0.05, 0.3, 0.18],
+            [0.12, 0.09, 0.02, 0.17, 0.6],
+        ]
+    )
+
+    y_true = np.array([0, 2, 3, 4, 2, 0, 1, 3, 3, 2])
+    expected_ece = 0.312
+    expected_mce = 0.600
+    n_bins = 10
+
+    # Generate expected formats
+    # Generate expected formats
+    dummy_data_shape, dummy_dataset, dummy_model = generate_expected_formats(y_true)
+
+    # Run metrics
+    metrics = classification_calibration_score_metric(
+        dummy_data_shape, dummy_model, dummy_dataset, y_pred_proba, n_bins
+    )
+
+    # Run assertions
+    assert len(metrics) == 2
+    ECE_metric: Measure = metrics[0]
+    MCE_metric: Measure = metrics[1]
+
+    assert ECE_metric.name == "ECE"
+    assert MCE_metric.name == "MCE"
+
+    for metric in [ECE_metric, MCE_metric]:
+        assert isinstance(metric.score, float)
+        assert 0 <= metric.score <= 1
+        assert isinstance(metric.time, datetime.datetime)
+
+    assert abs(ECE_metric.score - expected_ece) < 0.001
+    assert abs(MCE_metric.score - expected_mce) < 0.001
