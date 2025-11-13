@@ -22,8 +22,6 @@ def regression_error_score_metric(
 
     This metric is for regression tasks, where the true and predicted y values are
     continuous numerical quantities.
-    For classification tasks, the MAE and MSE between the true class label and the
-    predicted class is computed.
 
     Parameters
     ----------
@@ -40,16 +38,15 @@ def regression_error_score_metric(
 
     Notes
     -----
-    - Applicable primarily for regression tasks, but the Protocol provides `y_pred_proba`
-    - For classification models, MAE and MSE has limited interpretability
-    - Both MAE and MSE are [0, 1], with 0 indicating perfect prediction
-    - MSE penalizes larger errors more strongly than MAE
+    - Applicable primarily for regression tasks, but the Protocol
+    provides `y_pred_proba`?
+    - Both MAE and MSE are [0, inf), with 0 indicating perfect prediction
     - Implemented by John Popovici
     """
     date = pd.to_datetime(dataset.data[datashape.date.name]).max()
     date = date.to_pydatetime()
     y_true = dataset.data[datashape.target.name].to_numpy()
-    y_pred = np.argmax(y_pred_proba, axis=1)  # doesn't make sense for regression
+    y_pred = y_pred_proba.squeeze()  # (n_samples,)
 
     MAE_metric = Measure(
         name="MAE",

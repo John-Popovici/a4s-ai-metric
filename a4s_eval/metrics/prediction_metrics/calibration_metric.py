@@ -30,9 +30,9 @@ def classification_calibration_score_metric(
     Returns
     -------
     list[Measure] - A list of two `Measure` objects:
-    - "ECE": Expected Calibration Error — the weighted average absolute difference
+    - "ECE": Expected Calibration Error is the weighted average absolute difference
         between predicted confidence and empirical accuracy across probability bins.
-    - "MCE": Maximum Calibration Error — the largest absolute difference across bins.
+    - "MCE": Maximum Calibration Error is the largest absolute difference across bins.
 
     Notes
     -----
