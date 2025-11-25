@@ -98,7 +98,7 @@ def test_model_calibration_evaluation(
         assert isinstance(metric.time, datetime.datetime)
 
 
-def generate_expected_formats(y_true: np.array) -> (DataShape, Dataset):
+def generate_expected_formats(y_true: np.ndarray) -> (DataShape, Dataset):
     def dummy_feature(name, ftype):
         return {
             "pid": uuid.uuid4(),
