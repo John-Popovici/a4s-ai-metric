@@ -2,11 +2,10 @@ import datetime
 import uuid
 
 import numpy as np
-import onnxruntime as ort
 import pandas as pd
 import pytest
 
-from a4s_eval.data_model.evaluation import Dataset, DataShape, Model
+from a4s_eval.data_model.evaluation import Dataset, DataShape, Model, FeatureType, Feature
 from a4s_eval.data_model.measure import Measure
 from a4s_eval.metrics.prediction_metrics.calibration_metric import (
     classification_calibration_score_metric,
@@ -15,37 +14,56 @@ from a4s_eval.metrics.prediction_metrics.calibration_metric import (
 
 @pytest.fixture
 def data_shape() -> DataShape:
-    metadata = pd.read_csv("tests/data/lcld_v2_metadata_api.csv").to_dict(
-        orient="records"
+    date = Feature(
+        pid=uuid.uuid4(),
+        name="date",
+        feature_type=FeatureType.DATE,
+        min_value=0,
+        max_value=0,
     )
 
-    for record in metadata:
-        record["pid"] = uuid.uuid4()
+    target = Feature(
+        pid=uuid.uuid4(),
+        name="target",
+        feature_type=FeatureType.FLOAT,
+        min_value=0.0,
+        max_value=5.0,
+    )
 
-    data_shape = {
-        "features": [
-            item
-            for item in metadata
-            if item.get("name") not in ["charged_off", "issue_d"]
-        ],
-        "target": next(rec for rec in metadata if rec.get("name") == "charged_off"),
-        "date": next(rec for rec in metadata if rec.get("name") == "issue_d"),
-    }
+    datashape = DataShape(features=[], date=date, target=target)
 
-    return DataShape.model_validate(data_shape)
+    return datashape
 
 
 @pytest.fixture
-def test_dataset(tab_class_test_data: pd.DataFrame, data_shape: DataShape) -> Dataset:
-    data = tab_class_test_data
-    data["issue_d"] = pd.to_datetime(data["issue_d"])
+def test_dataset(data_shape: DataShape) -> Dataset:
+    data = pd.DataFrame(
+        {
+            "date": [
+                "2021-11-23 00:00:00",
+                "2021-11-24 00:00:00",
+                "2021-11-25 00:00:00",
+            ],
+            "feature_1": [1.0, 2.0, 3.0],
+            "feature_2": [4.0, 5.0, 6.0],
+            "target": [1, 0, 0],
+        }
+    )
+    data["date"] = pd.to_datetime(data["date"])
     return Dataset(pid=uuid.uuid4(), shape=data_shape, data=data)
 
 
 @pytest.fixture
-def ref_dataset(tab_class_train_data: pd.DataFrame, data_shape: DataShape) -> Dataset:
-    data = tab_class_train_data
-    data["issue_d"] = pd.to_datetime(data["issue_d"])
+def ref_dataset(data_shape: DataShape) -> Dataset:
+    data = pd.DataFrame(
+        {
+            "feature_1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            "feature_2": [5.0, 6.0, 7.0, 8.0, 9.0],
+            "target": [0, 0, 1, 1, 0],
+        }
+    )
+    # Training dataset does not have date column
+    # data["col_timestamp"] = pd.to_datetime(data["col_timestamp"])
     return Dataset(
         pid=uuid.uuid4(),
         shape=data_shape,
@@ -63,16 +81,8 @@ def ref_model(ref_dataset: Dataset) -> Model:
 
 
 @pytest.fixture
-def y_pred_proba(ref_model: Model, test_dataset: Dataset) -> np.ndarray:
-    session = ort.InferenceSession("./tests/data/lcld_v2_random_forest.onnx")
-    df = test_dataset.data[[f.name for f in test_dataset.shape.features]]
-    x_test = df.astype(np.double).to_numpy()
-
-    input_name = session.get_inputs()[0].name
-    label_name = session.get_outputs()[1].name
-    pred_onx = session.run([label_name], {input_name: x_test})[0]
-    y_pred_proba = np.array([list(d.values()) for d in pred_onx])
-
+def y_pred_proba() -> np.ndarray:
+    y_pred_proba = np.array([[0.5, 0.5],[0.75, 0.25],[0.25, 0.75]])
     return y_pred_proba
 
 
@@ -98,48 +108,28 @@ def test_model_calibration_evaluation(
         assert isinstance(metric.time, datetime.datetime)
 
 
-def generate_expected_formats(y_true: np.ndarray) -> (DataShape, Dataset):
-    def dummy_feature(name, ftype):
-        return {
-            "pid": uuid.uuid4(),
-            "name": name,
-            "feature_type": ftype,
-            "min_value": 0.0,
-            "max_value": 1.0,
-        }
-
-    dummy_data_shape = DataShape.model_validate(
-        {
-            "features": [],
-            "target": dummy_feature("target", "float"),
-            "date": dummy_feature("date", "date"),
-        }
-    )
-
+def generate_expected_formats(data_shape: DataShape, y_true: np.ndarray) -> Dataset:
     dates = pd.date_range("2025-01-01", periods=len(y_true), freq="D")
-    df = pd.DataFrame(
+    df: pd.DataFrame = pd.DataFrame(
         {
-            dummy_data_shape.target.name: y_true,
-            dummy_data_shape.date.name: dates,
+            data_shape.target.name: y_true,
+            data_shape.date.name: dates,
         }
     )
 
     dummy_dataset = Dataset(
         pid=uuid.uuid4(),
-        shape=dummy_data_shape,
+        shape=data_shape,
         data=df,
     )
 
-    dummy_model = Model(
-        pid=uuid.uuid4(),
-        model=None,
-        dataset=dummy_dataset,
-    )
-
-    return dummy_data_shape, dummy_dataset, dummy_model
+    return dummy_dataset
 
 
-def test_model_calibration_value_evaluation_1():
+def test_model_calibration_value_evaluation_1(data_shape: DataShape, ref_model: Model):
+    dummy_data_shape = data_shape
+    dummy_model = ref_model
+
     # Hardcoded test data
     # Source from towardsdatascience.com
     y_pred_proba = np.array(
@@ -162,7 +152,7 @@ def test_model_calibration_value_evaluation_1():
     n_bins = 5
 
     # Generate expected formats
-    dummy_data_shape, dummy_dataset, dummy_model = generate_expected_formats(y_true)
+    dummy_dataset = generate_expected_formats(dummy_data_shape, y_true)
 
     # Run metrics
     metrics = classification_calibration_score_metric(
@@ -186,7 +176,10 @@ def test_model_calibration_value_evaluation_1():
     assert abs(MCE_metric.score - expected_mce) < 0.00001
 
 
-def test_model_calibration_value_evaluation_2():
+def test_model_calibration_value_evaluation_2(data_shape: DataShape, ref_model: Model):
+    dummy_data_shape = data_shape
+    dummy_model = ref_model
+
     # Hardcoded test data
     # Source from towardsdatascience.com
     y_pred_proba = np.array(
@@ -211,7 +204,7 @@ def test_model_calibration_value_evaluation_2():
 
     # Generate expected formats
     # Generate expected formats
-    dummy_data_shape, dummy_dataset, dummy_model = generate_expected_formats(y_true)
+    dummy_dataset = generate_expected_formats(dummy_data_shape, y_true)
 
     # Run metrics
     metrics = classification_calibration_score_metric(
