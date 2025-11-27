@@ -1,9 +1,9 @@
 Running Calibration Metrics
 ====================
 n_bins=10
-date=2026-06-22 00:00:00
-accuracies_shape=(538,)
-confidences_shape=(538,)
+date=2025-03-16 00:00:00
+accuracies_shape=(75,)
+confidences_shape=(75,)
 ====================
 Bin=(0.0, 0.1]
 ====================
@@ -16,34 +16,34 @@ Bin=(0.30000000000000004, 0.4]
 Bin=(0.4, 0.5]
 ====================
 Bin=(0.5, 0.6000000000000001]
-in_bin=79
-confidence=0.5516072711392405
-accuracy=0.5063291139240507
-calibration_error=0.045278157215189796
+in_bin=2
+confidence=0.5128923700000001
+accuracy=0.5
+calibration_error=0.012892370000000097
 ====================
 Bin=(0.6000000000000001, 0.7000000000000001]
-in_bin=94
-confidence=0.6517722136170213
-accuracy=0.5851063829787234
-calibration_error=0.0666658306382979
+in_bin=4
+confidence=0.635070825
+accuracy=0.75
+calibration_error=0.114929175
 ====================
 Bin=(0.7000000000000001, 0.8]
-in_bin=93
-confidence=0.7480911297849463
-accuracy=0.7634408602150538
-calibration_error=0.015349730430107456
+in_bin=1
+confidence=0.7484244
+accuracy=1.0
+calibration_error=0.2515756
 ====================
 Bin=(0.8, 0.9]
-in_bin=129
-confidence=0.8513094592248062
-accuracy=0.8217054263565892
-calibration_error=0.029604032868217
+in_bin=1
+confidence=0.84519064
+accuracy=1.0
+calibration_error=0.15480936
 ====================
 Bin=(0.9, 1.0]
-in_bin=143
-confidence=0.9483655053146853
-accuracy=0.9440559440559441
-calibration_error=0.004309561258741268
+in_bin=67
+confidence=0.9955101523880598
+accuracy=1.0
+calibration_error=0.0044898476119401565
 ====================
-ECE=0.029193819572490676
-MCE=0.0666658306382979
+ECE=0.01590274919999988
+MCE=0.2515756

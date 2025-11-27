@@ -10,6 +10,9 @@ Generates datasets. Computes metrics. Generates graphs.
 By John Popovici.
 """
 
+import datetime
+import uuid
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -17,12 +20,67 @@ import matplotlib.pyplot as plt
 from tabpfn import TabPFNClassifier
 from sklearn.model_selection import train_test_split
 
+from a4s_eval.data_model.evaluation import Dataset, DataShape, Model, FeatureType, Feature
 from a4s_eval.metrics.prediction_metrics.calibration_metric import (
     classification_calibration_score_metric,
 )
-from tests.metrics.prediction_metrics.test_calibration_metric import (
-    generate_expected_formats,
-)
+
+
+def generate_expected_formats(y_true: np.ndarray) -> Dataset:
+    date = Feature(
+        pid=uuid.uuid4(),
+        name="date",
+        feature_type=FeatureType.DATE,
+        min_value=0,
+        max_value=0,
+    )
+
+    target = Feature(
+        pid=uuid.uuid4(),
+        name="target",
+        feature_type=FeatureType.FLOAT,
+        min_value=0.0,
+        max_value=5.0,
+    )
+
+    data_shape = DataShape(features=[], date=date, target=target)
+
+    dates = pd.date_range("2025-01-01", periods=len(y_true), freq="D")
+    df: pd.DataFrame = pd.DataFrame(
+        {
+            data_shape.target.name: y_true,
+            data_shape.date.name: dates,
+        }
+    )
+
+    dummy_dataset = Dataset(
+        pid=uuid.uuid4(),
+        shape=data_shape,
+        data=df,
+    )
+
+    ref_data = pd.DataFrame(
+        {
+            "feature_1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            "feature_2": [5.0, 6.0, 7.0, 8.0, 9.0],
+            "target": [0, 0, 1, 1, 0],
+        }
+    )
+    # Training dataset does not have date column
+    # data["col_timestamp"] = pd.to_datetime(data["col_timestamp"])
+    ref_dataset = Dataset(
+        pid=uuid.uuid4(),
+        shape=data_shape,
+        data=ref_data,
+    )
+
+    model = Model(
+        pid=uuid.uuid4(),
+        model=None,
+        dataset=ref_dataset,
+    )
+
+    return data_shape, dummy_dataset, model
 
 
 def present_calibration() -> None:
@@ -31,8 +89,8 @@ def present_calibration() -> None:
     # Run tabpfn
     # data_file: str = run_tabpfn_iris(dir_path)
     # data_file: str = run_tabpfn_prima(dir_path)
-    # data_file: str = "data_iris_class.csv"
-    data_file: str = "data_prima_diabetes_class.csv"
+    data_file: str = "data_iris_class.csv"
+    # data_file: str = "data_prima_diabetes_class.csv"
 
     # Generate or select CSV
     # Choose which csv to generate (if any)
@@ -62,7 +120,7 @@ def graph_calibration(dir_path: str, data_source: str) -> None:
     df = pd.read_csv(dir_path + data_file)
 
     # Plot calibration curve (confidence vs accuracy)
-    plt.figure(figsize=(10, 7))
+    plt.figure(figsize=(5, 4))
     plt.plot([0, 1], [0, 1], color="grey", linestyle="dashed")
     plt.plot(df["bin_confidence"], df["bin_accuracy"], marker="o")
     plt.xlabel("Bin Confidence")
