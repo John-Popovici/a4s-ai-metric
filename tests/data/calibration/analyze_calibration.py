@@ -1,24 +1,20 @@
 """
 Calibration metric data gathering for presentation.
 
-Makes use of the metric and metric testing files:
-- a4s_eval.metrics.prediction_metrics.calibration_metric
-- tests.metrics.prediction_metrics.test_calibration_metric
-
-Generates datasets. Computes metrics. Generates graphs.
+Computes calibration metrics and plots graphs.
+Takes as argument a CSV.
 
 By John Popovici.
 """
 
-import datetime
+import argparse
 import uuid
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from tabpfn import TabPFNClassifier
-from sklearn.model_selection import train_test_split
+from argparse import Namespace
 
 from a4s_eval.data_model.evaluation import Dataset, DataShape, Model, FeatureType, Feature
 from a4s_eval.metrics.prediction_metrics.calibration_metric import (
@@ -83,23 +79,8 @@ def generate_expected_formats(y_true: np.ndarray) -> Dataset:
     return data_shape, dummy_dataset, model
 
 
-def present_calibration() -> None:
+def present_calibration(data_file: str) -> None:
     dir_path: str = "tests/data/calibration/"
-
-    # Run tabpfn
-    # data_file: str = run_tabpfn_iris(dir_path)
-    # data_file: str = run_tabpfn_prima(dir_path)
-    data_file: str = "data_iris_class.csv"
-    # data_file: str = "data_prima_diabetes_class.csv"
-
-    # Generate or select CSV
-    # Choose which csv to generate (if any)
-    # data_file: str = generate_toy_dataset_csv(dir_path)
-    # data_file: str = generate_perfect_dataset_csv(dir_path)
-    # data_file: str = generate_almost_perfect_dataset_csv(dir_path)
-    # data_file: str = "data_perf.csv"
-    # data_file: str = "data_almost_perf.csv"
-    
 
     y_pred_proba, y_true = read_class_csv(dir_path + data_file)
 
@@ -140,162 +121,12 @@ def run_metric(y_pred_proba, y_true, n_bins, dir_path) -> None:
     dummy_data_shape, dummy_dataset, dummy_model = generate_expected_formats(y_true)
 
     # Run metrics
-    metrics = classification_calibration_score_metric(
+    ECE, MCE = classification_calibration_score_metric(
         dummy_data_shape, dummy_model, dummy_dataset, y_pred_proba, n_bins, dir_path
     )
 
-
-def run_tabpfn_iris(dir_path: str) -> str:
-    # from https://archive.ics.uci.edu/dataset/53/iris
-    file_name_in: str = "data_iris.csv"
-    file_name_out: str = "data_iris_class.csv"
-
-    df: pd.DataFrame = pd.read_csv(dir_path + file_name_in)
-
-    # Extract features
-    feature_cols = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
-    X = df[feature_cols].to_numpy()
-    y = df["species_id"].to_numpy()
-
-    # Train test split
-    # purposefully don't train too much to allow for more diverse outcomes
-    # as well as more test data
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.5, shuffle=True, stratify=y, random_state=42
-    )
-
-    # Run the model
-    y_pred_proba = run_tabpfn(X_train, y_train, X_test)
-    write_class_csv(dir_path + file_name_out, y_pred_proba, y_test)
-
-    return file_name_out
-
-
-def run_tabpfn_prima(dir_path: str) -> str:
-    # from https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv
-    file_name_in: str = "data_prima_diabetes.csv"
-    file_name_out: str = "data_prima_diabetes_class.csv"
-
-    df: pd.DataFrame = pd.read_csv(dir_path + file_name_in)
-
-    # Extract features
-    feature_cols = ["atr_1", "atr_2", "atr_3", "atr_4", "atr_5", "atr_6", "atr_7", "atr_8"]
-    X = df[feature_cols].to_numpy()
-    y = df["out"].to_numpy()
-
-    # Train test split
-    # purposefully don't train too much to allow for more diverse outcomes
-    # as well as more test data
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.7, shuffle=True, stratify=y, random_state=42
-    )
-
-    # Run the model
-    y_pred_proba = run_tabpfn(X_train, y_train, X_test)
-    write_class_csv(dir_path + file_name_out, y_pred_proba, y_test)
-
-    return file_name_out
-
-
-def run_tabpfn(X_train, y_train, X_test) -> np.ndarray:
-    print("Running TabPFN Classifier")
-
-    model = TabPFNClassifier()
-    model.fit(X_train, y_train)
-    return model.predict_proba(X_test)
-
-
-def generate_toy_dataset_csv(dir_path: str) -> str:
-    file_name: str = "data_toy.csv"
-
-    # Write toy data
-    y_pred_proba = np.array(
-        [
-            [0.78, 0.22],
-            [0.36, 0.64],
-            [0.08, 0.92],
-            [0.58, 0.42],
-            [0.49, 0.51],
-            [0.85, 0.15],
-            [0.30, 0.70],
-            [0.63, 0.37],
-            [0.17, 0.83],
-        ]
-    )
-    y_true = np.array([0, 1, 0, 0, 0, 0, 1, 1, 1])
-
-    # Write to CSV
-    write_class_csv(dir_path + file_name, y_pred_proba, y_true)
-    return file_name
-
-
-def generate_perfect_dataset_csv(dir_path: str) -> str:
-    file_name: str = "data_perf.csv"
-
-    all_probs = []
-    all_true = []
-
-    for num_correct in range(1, 10, 1):  # 1 -> 9
-        conf = num_correct / 10  # 1 correct means confidence of 0.1
-
-        for num_entry in range(10):
-            all_probs.append([round(conf, 2), round(1 - conf, 2)])
-            if num_entry < num_correct:
-                all_true.append(0)
-            else:
-                all_true.append(1)
-
-    # Write to CSV
-    y_pred_proba = np.array(all_probs)
-    y_true = np.array(all_true)
-
-    write_class_csv(dir_path + file_name, y_pred_proba, y_true)
-    return file_name
-
-
-def generate_almost_perfect_dataset_csv(dir_path: str) -> str:
-    file_name: str = "data_almost_perf.csv"
-
-    all_probs = []
-    all_true = []
-
-    for num_correct in range(1, 10, 1):  # 1 -> 9
-        for num_entry in range(10):
-            conf = num_correct / 10  # 1 correct means confidence of 0.1
-            conf += np.random.normal(0, 0.15)
-            conf = np.clip(conf, 0.01, 0.99)
-
-            all_probs.append([conf, 1 - conf])
-            if num_entry < num_correct:
-                all_true.append(0)
-            else:
-                all_true.append(1)
-
-    # Write to CSV
-    y_pred_proba = np.array(all_probs)
-    y_true = np.array(all_true)
-
-    write_class_csv(dir_path + file_name, y_pred_proba, y_true)
-    return file_name
-
-
-def write_class_csv(file_path: str, y_pred_proba: np.ndarray, y_true: np.ndarray) -> None:
-    # Print information
-    print(f"Writing CSV {file_path}")
-
-    # Write data to CSV
-    num_classes = y_pred_proba.shape[1]
-    data = {}
-
-    # Add probability columns
-    for k in range(num_classes):
-        data[f"prob_{k}"] = y_pred_proba[:, k]
-
-    # Add target column
-    data["true_class"] = y_true
-
-    df = pd.DataFrame(data)
-    df.to_csv(file_path, index=False)
+    print(f"ECE={ECE}")
+    print(f"MCE={MCE}")
 
 
 def read_class_csv(file_path: str):
@@ -317,5 +148,16 @@ def read_class_csv(file_path: str):
 
 
 if __name__ == "__main__":
-    # uv run tests/data/calibration/analyze_calibration.py
-    present_calibration()
+    # uv run tests/data/calibration/analyze_calibration.py --csv <file-name>
+    # parse arguments
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--csv",
+        dest="file_name",
+        required=True,
+        help="CSV file name",
+    )
+    args: Namespace = parser.parse_args()
+
+    present_calibration(args.file_name)

@@ -46,6 +46,8 @@ def classification_calibration_score_metric(
     model : Model
     dataset : Dataset
     y_pred_proba : np.ndarray
+    n_bins : int = 10
+    logging_dir_path : str = ""
 
     Returns
     -------
