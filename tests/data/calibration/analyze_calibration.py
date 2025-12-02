@@ -88,6 +88,7 @@ def present_calibration(data_file: str) -> None:
     run_metric(y_pred_proba, y_true, n_bins, dir_path)
 
     graph_calibration(dir_path, data_file)
+    # graph_fake_calibration(dir_path)
 
 
 def graph_calibration(dir_path: str, data_source: str) -> None:
@@ -111,6 +112,23 @@ def graph_calibration(dir_path: str, data_source: str) -> None:
     plt.xlim(0, 1)
     plt.ylim(0, 1)
     plt.savefig(f"{dir_path}figures/{data_source}.png")
+
+
+def graph_fake_calibration(dir_path: str) -> None:
+    # Plot calibration curve (confidence vs accuracy)
+    plt.figure(figsize=(5, 4))
+    plt.plot([0, 1], [0, 1], color="grey", linestyle="dashed")
+    plt.plot([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0.55, 0.7, 0.85, 0.9, 0.95, 1.0], marker="o", label='Under Confident', color='#ff7f0e')
+    plt.plot([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0.5, 0.6, 0.7, 0.8, 0.9, 1.0], marker="o", label='Perfect Calibration', color='#1f77b4')
+    plt.plot([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [0.45, 0.5, 0.55, 0.67, 0.83, 0.95], marker="o", label='Over Confident', color='#2ca02c')
+    plt.xlabel("Bin Confidence")
+    plt.ylabel("Bin Accuracy")
+    plt.title("Calibration Curve")
+    plt.grid(True)
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+    plt.legend(loc="upper left")
+    plt.savefig(f"{dir_path}figures/fake_calibration.png")
 
 
 def run_metric(y_pred_proba, y_true, n_bins, dir_path) -> None:
