@@ -1,78 +1,41 @@
-# A4S Evaluation module
+# Metric Implementation
 
-# Quickstart for Evaluation module
+This project is John Popovici's implementation of the Calibration Error Metric (ECE, MCE) into the A4S platform.
 
-## How to run within local development environment
+The repository can be found at `https://github.com/John-Popovici/a4s-ai-metric`
 
-### Prerequisites
-To run the local development environment, you need first to launch the services containers (database, redis, etc.). Please checkout API repo for instructions on how to do this.
+## Installation
 
-### Configuration of development environment
-We use `uv` as environment manager, you can configure python dependencies with the following command:
+1. Clone the repository
+2. In the repository `uv sync`
+
+## Using the metric
+
+The metric is implemented in `a4s_eval/metrics/prediction_metrics/calibration_metric.py`
+The metric tests are in `tests/metrics/prediction_metrics/test_calibration_metric.py`
 
 ```bash
-uv sync --frozen --group dev
+uv run pytest tests/metrics/prediction_metrics/test_calibration_metric.py
 ```
 
-<!-- We provide a pre-commit hook to automatically check and format your code before each commit. You can install the pre-commit hooks with the following command:
-
-```bash
-uv run pre-commit install
-``` -->
-
-### Launching locally the A4S Evaluation API
-With the services running, you can now launch the A4S Evaluation API locally.
-
-```bash
-uv sync --frozen --group dev
-bash tasks/start_api.sh
-```
-
-### Launching locally the A4S Evaluation Worker
-With the services running, you can now launch the A4S Evaluation Worker locally.
-
-```bash
-uv sync --frozen --group dev
-bash tasks/start_worker.sh
-```
-
-### How to manually run linter
-We use ruff for linting. This step is automatically run before each commit if the pre-commit hooks are configured.
-
-To manually run the linter, you can use the following command:
-
-```bash
-uv sync --frozen --group dev
-uv run ruff check .
-uv run ruff format .
-```
-
-### How to run tests
-To run the unit tests, you can use the following command:
-
-```bash
-uv sync --frozen --group test
-uv run pytest tests/
-```
-
-### How to log and customise logs
-
-We use a single package-wide logger named as the main package: `a4s_api`.
-
-To log, simply import the logger and use it:
+The metric can be used as such
 
 ```python
-from a4s_api.utils import get_logger
-
-get_logger().info("This is an info message")
-get_logger().error("This is an error message")
+ECE, MCE = classification_calibration_score_metric(
+    data_shape, model, dataset, y_pred_proba, 
+    n_bins, # optional, default value is 10
+    dir_path, # optional for logging
+)
 ```
 
-You can customize the logging configuration by modifying the `./config/logging.yaml` file.
+Already implemented are some files to facilitate exploration of the metric within the `tests/data/calibration/` directory:
+- Generate Predictions
+    - `generate_data.py`
+        - Generates toy probabilities
+    - `run_tabpfn.py --data prima`
+        - Generates probabilities from data using TabPFN
+        - Dataset support is hard-coded for demo purposes
+- Run Calibration Metric and Graph Logs
+    - `analyze_calibration.py --csv data_perf.csv`
 
-For instance, in the loggers section, you can customize the level of logging for different loggers, such as the `a4s_api` logger (containing our messages) or the `uvicorn` and `sqlalchemy` loggers.
-
-You can also customize the message format by modifying the `formatters.colored.format` field in the loggers section.
-See [official Python documentation on LogRecord attributes](https://docs.python.org/3/library/logging.html#logrecord-attributes) for a full list of available fields.
-
-Please do not push your local changes, except if necessary. For instance, DEBUG log in `logging.yaml` should not be pushed.
+Already generated are some datasets. Graphs can be found in `tests/data/calibration/figures`
